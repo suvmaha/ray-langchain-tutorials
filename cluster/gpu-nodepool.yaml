@@ -1,0 +1,62 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gpu
+spec:
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: "KarpenterNodeRole-eks-ray-platform"
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 200Gi
+        volumeType: gp3
+        deleteOnTermination: true
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "eks-ray-platform"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "eks-ray-platform"
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-node-pool
+spec:
+  template:
+    metadata:
+      labels:
+        type: karpenter
+        NodeGroupType: gpu-node-pool
+        nvidia.com/gpu.product: NVIDIA-L4
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu
+      taints:
+        - key: nvidia.com/gpu
+          value: "Exists"
+          effect: "NoSchedule"
+      requirements:
+        - key: "karpenter.k8s.aws/instance-family"
+          operator: In
+          values: ["g6"]
+        - key: "karpenter.k8s.aws/instance-size"
+          operator: In
+          values: ["xlarge", "2xlarge", "4xlarge", "8xlarge", "12xlarge", "16xlarge", "48xlarge"]
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "eks.amazonaws.com/capacityType"
+          operator: In
+          values: ["ON_DEMAND"]
+  limits:
+    cpu: "1000"
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s

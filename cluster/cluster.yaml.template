@@ -1,0 +1,48 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${EKS_CLUSTER_NAME}
+  region: ${AWS_REGION}
+  version: "${K8S_VERSION}"
+  tags:
+    cluster: ${EKS_CLUSTER_NAME}
+
+# VPC and subnets provisioned by CDK (infra/).
+# create.sh populates these values from CDK CloudFormation outputs.
+vpc:
+  id: "${VPC_ID}"
+  subnets:
+    private:
+      ${AZ_1}: { id: "${PRIVATE_SUBNET_1}" }
+      ${AZ_2}: { id: "${PRIVATE_SUBNET_2}" }
+    public:
+      ${AZ_1}: { id: "${PUBLIC_SUBNET_1}" }
+      ${AZ_2}: { id: "${PUBLIC_SUBNET_2}" }
+
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: karpenter
+        namespace: karpenter
+      roleName: ${EKS_CLUSTER_NAME}-karpenter
+      attachPolicyARNs:
+        - arn:aws:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${EKS_CLUSTER_NAME}
+      roleOnly: true
+
+# System node group — runs Karpenter, nginx ingress, anyscale-operator, and system pods.
+# m5.xlarge (4 vCPU) gives headroom for all system workloads without CPU pressure.
+# Karpenter then provisions all Ray/Anyscale workload nodes on demand.
+managedNodeGroups:
+  - name: system
+    instanceType: m5.xlarge
+    minSize: 2
+    maxSize: 2
+    desiredCapacity: 2
+    privateNetworking: true
+    labels:
+      role: system
+    iam:
+      withAddonPolicies:
+        autoScaler: false
