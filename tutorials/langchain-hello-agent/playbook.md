@@ -1,6 +1,6 @@
 # Playbook — LangChain Hello Agent
 
-**Estimated time:** ~20 min (clone ~1 min + cluster ~10 min + job ~5 min + results ~4 min)
+**Estimated time:** ~40 min (clone ~1 min + cluster ~30 min + job ~5 min + results ~4 min)
 
 Run a LangChain agent as a RayJob on KubeRay + EKS Auto Mode. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
 
@@ -53,6 +53,10 @@ export REPO_ROOT=$(pwd)
 ```
 
 **Explore the structure:**
+
+```bash
+tree -L 3
+```
 
 ```
 ray-langchain-tutorials/
@@ -117,7 +121,7 @@ Proceed with cluster creation? (y/n): y
 ── STEP 1: Generate eksctl cluster config ──────────────────────────────
   Written: cluster/cluster.yaml
 
-── STEP 2: Create EKS Auto Mode cluster (~10 min) ──────────────────────
+── STEP 2: Create EKS Auto Mode cluster (~30 min) ──────────────────────
   ...eksctl output...
   Cluster created.
 
@@ -127,7 +131,7 @@ Proceed with cluster creation? (y/n): y
 ── STEP 4: Verify ──────────────────────────────────────────────────────
   ✅  Cluster ready
 
-⏱  Elapsed: ~10m
+⏱  Elapsed: ~30m
 ```
 
 **Verify KubeRay is running:**
