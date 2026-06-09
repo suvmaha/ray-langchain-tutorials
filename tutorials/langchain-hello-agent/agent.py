@@ -2,7 +2,7 @@ import os
 import ray
 from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 
 @tool
@@ -39,7 +39,7 @@ def classify_industry(company_name: str) -> str:
 def make_agent():
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
     tools = [add_numbers, multiply_numbers, classify_industry]
-    return create_react_agent(
+    return create_agent(
         model=llm,
         tools=tools,
         prompt="You are a helpful assistant. Use the available tools to answer questions accurately.",

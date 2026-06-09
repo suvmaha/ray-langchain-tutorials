@@ -178,7 +178,8 @@ agent.py
 └── run_agent.remote("Goldman Sachs industry + 365*24?")         ─┘
         ↓ each worker:
         make_agent()                    — Claude Haiku + 3 tools
-        AgentExecutor.invoke(question)  — LLM decides which tools to call
+        create_agent(model, tools)      — LangGraph ReAct agent
+        agent.invoke(question)          — LLM decides which tools to call
         return {"question": ..., "answer": ...}
 ```
 
@@ -217,25 +218,29 @@ kubectl get rayjob langchain-hello-agent -w
 # langchain-hello-agent   SUCCEEDED    Complete            ...
 ```
 
-**Stream logs from the Ray head pod:**
+**Read job output (job driver log on the head pod):**
 
 ```bash
-kubectl logs -l ray.io/node-type=head -n default --follow
+HEAD_POD=$(kubectl get pod -l ray.io/node-type=head -n default -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $HEAD_POD -n default -- \
+  bash -c 'cat /tmp/ray/session_latest/logs/job-driver-langchain-hello-agent-*.log'
 
 # OUTPUT
 Running 3 agent questions in parallel on Ray...
 
-> Entering new AgentExecutor chain...
-> Invoking: `classify_industry` with `{'company_name': 'Microsoft'}`
-> Microsoft → Technology
-> Finished chain.
+(run_agent pid=...)   [HumanMessage] What industry is Microsoft in?
+(run_agent pid=...)   [AIMessage] [{'name': 'classify_industry', 'input': {'company_name': 'Microsoft'}, ...}]
+(run_agent pid=...)   [ToolMessage] Microsoft → Technology
+(run_agent pid=...)   [AIMessage] Microsoft is in the Technology industry.
 
-> Entering new AgentExecutor chain...
-> Invoking: `multiply_numbers` with `{'a': 2847.0, 'b': 3921.0}`
-> 11162487.0
-> Finished chain.
+(run_agent pid=..., ip=...)   [HumanMessage] What is 2847 multiplied by 3921?
+(run_agent pid=..., ip=...)   [ToolMessage] 11162487.0
+(run_agent pid=..., ip=...)   [AIMessage] 2847 multiplied by 3921 equals 11,162,487.
 
-...
+(run_agent pid=..., ip=...)   [HumanMessage] What industry is Goldman Sachs in? Also, what is 365 times 24?
+(run_agent pid=..., ip=...)   [ToolMessage] Goldman Sachs → Finance
+(run_agent pid=..., ip=...)   [ToolMessage] 8760.0
+(run_agent pid=..., ip=...)   [AIMessage] Goldman Sachs is in the Finance industry. 365 times 24 equals 8,760.
 
 ============================================================
 RESULTS
@@ -250,6 +255,8 @@ A: 2847 multiplied by 3921 equals 11,162,487.
 Q: What industry is Goldman Sachs in? Also, what is 365 times 24?
 A: Goldman Sachs is in the Finance industry. 365 times 24 equals 8,760.
 ```
+
+> Each `(run_agent pid=..., ip=...)` prefix shows which Ray worker handled that task — different IPs confirm the agents ran on separate nodes.
 
 **Confirm job succeeded:**
 
@@ -331,11 +338,22 @@ kubectl describe pod <pending-pod> -n default | grep -A 20 "Events:"
 ```
 Usually: Auto Mode is provisioning nodes (first run takes 2-3 min). Give it time.
 
-**`ModuleNotFoundError: langchain_anthropic`:**
-The `runtimeEnvYAML` pip install failed or is still in progress. Check Ray head logs:
+**`ImportError` on job start:**
+Ray pip-cached a virtualenv from a previous run on the same node. Delete all resources and resubmit:
 ```bash
-kubectl logs -l ray.io/node-type=head -n default | grep -i "pip\|install\|error"
+kubectl delete rayjob langchain-hello-agent --ignore-not-found
+kubectl delete configmap langchain-hello-agent-code --ignore-not-found
+kubectl delete secret langchain-secrets --ignore-not-found
+./tutorials/langchain-hello-agent/submit.sh
+```
+
+**Job output not visible in head pod logs:**
+The job driver log is separate from the Ray head process. Read it directly:
+```bash
+HEAD_POD=$(kubectl get pod -l ray.io/node-type=head -n default -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $HEAD_POD -n default -- \
+  bash -c 'cat /tmp/ray/session_latest/logs/job-driver-langchain-hello-agent-*.log'
 ```
 
 **Agent returns wrong answer:**
-Check tool call trace in the logs — look for `Invoking:` lines to see which tools were called and what they returned.
+Check tool call trace — look for `[ToolMessage]` lines to see which tools were called and what they returned.

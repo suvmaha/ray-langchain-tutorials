@@ -36,8 +36,8 @@ CPU only — no GPU needed. Auto Mode provisions nodes on demand and scales to z
 ## Key Concepts
 
 - **`@tool`** — decorates plain Python functions as LangChain tools
-- **`create_tool_calling_agent`** — wires model + tools + prompt into an agent
-- **`AgentExecutor`** — runs the agent loop: LLM decides → tool executes → LLM responds
+- **`create_agent`** — builds a LangGraph ReAct agent: model + tools + prompt
+- **`agent.invoke`** — runs the agent loop: LLM decides → tool executes → LLM responds
 - **`@ray.remote`** — each agent invocation runs on a separate Ray worker
 - **`ray.get(futures)`** — collects results from all parallel workers
 - **RayJob** — KubeRay CRD that submits a job to the Ray cluster and shuts it down when done

@@ -11,6 +11,7 @@ spec:
   runtimeEnvYAML: |
     pip:
       - langchain-anthropic
+      - langchain
       - langgraph
 
   rayClusterSpec:

@@ -57,3 +57,14 @@
   create_tool_calling_agent will be available in 0.3.x.
 
 
+⏺ Same pip cache hash (ac36e7c22cae785eb319fc7ba98b3cf73cc11b0f) — Ray reused the cached virtualenv from the first
+  run, ignoring the version pin changes. Let me check what's actually deployed and verify the file:
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ The pip cache hash is identical between runs — the same EC2 node was reused and Ray served the old cached
+  virtualenv regardless of the version pins. The deeper issue: create_tool_calling_agent + AgentExecutor are
+  deprecated in favor of LangGraph's create_react_agent, which is likely why they're gone in the current version.
+
+  The fix is to switch to langgraph.prebuilt.create_react_agent — it's the current standard, cleaner API, and
+  changes the pip list entirely which will bust the cache.
