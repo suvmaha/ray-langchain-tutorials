@@ -1,9 +1,8 @@
 import os
 import ray
 from langchain_anthropic import ChatAnthropic
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
 
 
 @tool
@@ -40,20 +39,21 @@ def classify_industry(company_name: str) -> str:
 def make_agent():
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
     tools = [add_numbers, multiply_numbers, classify_industry]
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a helpful assistant. Use the available tools to answer questions accurately."),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ])
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return create_react_agent(
+        model=llm,
+        tools=tools,
+        prompt="You are a helpful assistant. Use the available tools to answer questions accurately.",
+    )
 
 
 @ray.remote
 def run_agent(question: str) -> dict:
-    executor = make_agent()
-    result = executor.invoke({"input": question})
-    return {"question": question, "answer": result["output"]}
+    agent = make_agent()
+    result = agent.invoke({"messages": [("human", question)]})
+    for msg in result["messages"]:
+        print(f"  [{msg.__class__.__name__}] {str(getattr(msg, 'content', ''))[:300]}")
+    answer = result["messages"][-1].content
+    return {"question": question, "answer": answer}
 
 
 if __name__ == "__main__":

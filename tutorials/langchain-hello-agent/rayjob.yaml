@@ -10,9 +10,8 @@ spec:
 
   runtimeEnvYAML: |
     pip:
-      - langchain
       - langchain-anthropic
-      - langchain-core
+      - langgraph
 
   rayClusterSpec:
     rayVersion: "2.44.0"
