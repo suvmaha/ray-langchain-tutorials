@@ -14,7 +14,7 @@ Q: What industry is Microsoft in?
 A: Microsoft is in the Technology industry.
 
 Q: What is 2847 multiplied by 3921?
-A: 2847 multiplied by 3921 equals 11,162,487.
+A: 2847 multiplied by 3921 is 11,163,087.
 
 Q: What industry is Goldman Sachs in? Also, what is 365 times 24?
 A: Goldman Sachs is in the Finance industry. 365 times 24 equals 8,760.
