@@ -32,8 +32,7 @@ export ANTHROPIC_API_KEY=<your-key>
 What happens:
 
 ```
-⏺ Three LangChain agents run in parallel across three Ray workers. Each agent gets one question and has access to
-  three tools:
+Three LangChain agents run in parallel across three Ray workers. Each agent gets one question and has access to three tools:
 
   - classify_industry(company_name) — looks up a company in a hardcoded dict
   - multiply_numbers(a, b) — Python multiplication
@@ -53,6 +52,27 @@ What happens:
   The Ray part: all three questions fire simultaneously via ray.remote. Each worker is independent, so question 1
   doesn't wait for question 2 to finish. At scale you'd run thousands of questions the same way — the pattern
   doesn't change.
+
+  Pods — KubeRay created 5 pods for the job:
+  - 1 head pod (Ray cluster head, runs the job driver)
+  - 3 worker pods (one per run_agent.remote call — the workerGroupSpecs.replicas: 3 in rayjob.yaml)
+  - 1 job submitter pod (the langchain-hello-agent-w8jdt Completed pod you saw earlier — KubeRay's internal job
+  tracker)
+
+  Nodes — yes, Auto Mode provisioned new EC2 instances on demand. You saw the workers on different IPs
+  (192.168.86.112, 192.168.67.199, 192.168.67.200) — those are pods on different EC2 nodes. Before the job was
+  submitted, kubectl get nodes would have shown nothing (or just the system node). Auto Mode saw pending pods,
+  picked EC2 instance types, and spun them up.
+
+  After the job finishes and the RayCluster shuts down (the 600s TTL), those pods are gone and Auto Mode scales the
+  nodes back to zero. No idle charges.
+
+  The key flow:
+  submit.sh → RayJob created → KubeRay creates RayCluster
+    → pods Pending → Auto Mode sees pending pods → EC2 nodes appear
+      → pods Running → job executes → SUCCEEDED
+        → RayCluster shuts down → pods deleted → nodes scale to zero
+
 ```
 
 ## Compute
