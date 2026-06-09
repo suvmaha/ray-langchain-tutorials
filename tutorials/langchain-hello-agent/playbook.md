@@ -1,8 +1,8 @@
 # Playbook — LangChain Hello Agent
 
-**Estimated time:** ~25 min (cluster ~15 min + Anyscale setup ~3 min + job ~5 min)
+**Estimated time:** ~20 min (cluster ~10 min + job ~5 min + results ~5 min)
 
-Run a LangChain agent as a Ray job on Anyscale + EKS. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
+Run a LangChain agent as a RayJob on KubeRay + EKS Auto Mode. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
 
 Execute steps in order — each step leaves the environment ready for the next.
 
@@ -13,11 +13,10 @@ Execute steps in order — each step leaves the environment ready for the next.
 - [STEP 1 — Verify Tools](#step-1--verify-tools)
 - [STEP 2 — Set API Key](#step-2--set-api-key)
 - [STEP 3 — Create EKS cluster](#step-3--create-eks-cluster)
-- [STEP 4 — Wire Anyscale](#step-4--wire-anyscale)
-- [STEP 5 — Submit the agent job](#step-5--submit-the-agent-job)
-- [STEP 6 — Monitor and verify results](#step-6--monitor-and-verify-results)
-- [STEP 7 — (Optional) Enable LangSmith tracing](#step-7--optional-enable-langsmith-tracing)
-- [STEP 8 — Tear Down](#step-8--tear-down)
+- [STEP 4 — Submit the agent job](#step-4--submit-the-agent-job)
+- [STEP 5 — Monitor and verify results](#step-5--monitor-and-verify-results)
+- [STEP 6 — (Optional) Enable LangSmith tracing](#step-6--optional-enable-langsmith-tracing)
+- [STEP 7 — Tear Down](#step-7--tear-down)
 
 ---
 
@@ -28,7 +27,6 @@ aws --version              # aws-cli/2.x
 eksctl version             # 0.195+
 kubectl version --client   # v1.3x
 helm version --short       # v3.x
-anyscale --version         # anyscale CLI
 
 # Confirm AWS identity
 aws sts get-caller-identity
@@ -41,19 +39,17 @@ aws sts get-caller-identity
 }
 ```
 
-> Install anyscale CLI: `pipx install anyscale` then `anyscale login`
-
 ---
 
 ## STEP 2 — Set API Key
 
-The agent calls Claude Haiku via the Anthropic API. Set your key before submitting the job — the submit script checks for it and fails fast if missing.
+The agent calls Claude Haiku via the Anthropic API. `submit.sh` checks for this and fails fast if missing.
 
 ```bash
 export ANTHROPIC_API_KEY=<your-anthropic-api-key>
 
-# Verify it's set
-echo $ANTHROPIC_API_KEY | cut -c1-8    # should print first 8 chars, e.g. sk-ant-ap
+# Verify
+echo $ANTHROPIC_API_KEY | cut -c1-8    # e.g. sk-ant-ap
 ```
 
 > Get your key at: console.anthropic.com → API Keys
@@ -66,116 +62,119 @@ echo $ANTHROPIC_API_KEY | cut -c1-8    # should print first 8 chars, e.g. sk-ant
 ./cluster/create.sh
 
 # OUTPUT
+── Pre-flight checks ───────────────────────────────────────────────────
+  ✅  No existing cluster 'eks-ray-platform'
+  ✅  eksctl available
+  ✅  kubectl available
+  ✅  helm available
+
 ╔══════════════════════════════════════════════════════════════════════╗
-║              Ray Platform — EKS Cluster                             ║
+║           Ray LangChain — EKS Auto Mode Cluster                     ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║  Cluster name   : eks-ray-platform                                   ║
 ║  Region         : us-east-1                                          ║
+║  Kubernetes     : 1.35                                               ║
+║  Compute        : EKS Auto Mode (scale to zero, on demand)           ║
+║  Ray operator   : KubeRay (installed after cluster)                  ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-── STEP 1: CDK VPC stack ───────────────────────────────────────────────
-  ✅  VPC stack deployed
+Proceed with cluster creation? (y/n): y
 
-── STEP 2: EKS cluster ─────────────────────────────────────────────────
-  ...eksctl output (~10 min)...
+── STEP 1: Generate eksctl cluster config ──────────────────────────────
+  Written: cluster/cluster.yaml
+
+── STEP 2: Create EKS Auto Mode cluster (~10 min) ──────────────────────
+  ...eksctl output...
+  Cluster created.
+
+── STEP 3: Install KubeRay operator ────────────────────────────────────
+  ✅  KubeRay operator v1.2.2 installed in ray-system namespace.
+
+── STEP 4: Verify ──────────────────────────────────────────────────────
   ✅  Cluster ready
 
-── STEP 3: Karpenter ───────────────────────────────────────────────────
-  ✅  Karpenter installed
-
-── STEP 4: nginx ingress ───────────────────────────────────────────────
-  ✅  nginx ingress controller installed
-
-⏱  Elapsed: ~15m
+⏱  Elapsed: ~10m
 ```
 
-**Verify nodes are ready:**
+**Verify KubeRay is running:**
 
 ```bash
-kubectl get nodes
+kubectl get deployment kuberay-operator -n ray-system
 
-# NAME                                          STATUS   ROLES    AGE
-# ip-10-0-x-x.ec2.internal                     Ready    <none>   2m
+# NAME               READY   UP-TO-DATE   AVAILABLE
+# kuberay-operator   1/1     1            1
 ```
+
+> **Auto Mode note:** `kubectl get nodes` may return empty until a workload is scheduled — that's expected. Nodes appear on demand.
 
 ---
 
-## STEP 4 — Wire Anyscale
-
-```bash
-./anyscale/setup.sh
-
-# OUTPUT
-── STEP 1: Anyscale cloud setup ─────────────────────────────────────────
-  ✅  Cloud registered: eks-ray-cloud
-
-── STEP 2: Anyscale operator ────────────────────────────────────────────
-  ✅  Operator installed
-
-── STEP 3: Verify ───────────────────────────────────────────────────────
-  ✅  Anyscale cloud verified
-```
-
-**Verify the operator is running:**
-
-```bash
-kubectl get pods -n anyscale-operator
-
-# NAME                    READY   STATUS    RESTARTS   AGE
-# anyscale-operator-xxx   1/1     Running   0          60s
-```
-
----
-
-## STEP 5 — Submit the agent job
+## STEP 4 — Submit the agent job
 
 ```bash
 ./tutorials/langchain-hello-agent/submit.sh
 
 # OUTPUT
-Submitting job 'langchain-hello-agent'...
-Job submitted. View at: https://console.anyscale.com/jobs
-Job ID: prodjob_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+secret/langchain-secrets configured
+configmap/langchain-hello-agent-code configured
+rayjob.ray.io/langchain-hello-agent created
+
+RayJob submitted. Monitor with:
+  kubectl get rayjob langchain-hello-agent -w
+  kubectl logs -l ray.io/node-type=head -n default --follow
 ```
 
-**What runs:**
+**What `submit.sh` does:**
+
+1. Creates a Kubernetes secret with your `ANTHROPIC_API_KEY`
+2. Creates a ConfigMap with `agent.py` so the Ray pods can run it without a custom image
+3. Applies `rayjob.yaml` — KubeRay spins up a RayCluster, runs the job, shuts it down
+
+**What runs inside Ray:**
 
 ```
 agent.py
-├── ray.init()                          — connect to Ray cluster
-├── run_agent.remote("What industry is Microsoft in?")     ─┐
-├── run_agent.remote("What is 2847 * 3921?")               ─┤── 3 Ray workers in parallel
-└── run_agent.remote("Goldman Sachs industry + 365*24?")   ─┘
+├── ray.init()                                                    — connect to cluster
+├── run_agent.remote("What industry is Microsoft in?")           ─┐
+├── run_agent.remote("What is 2847 * 3921?")                     ─┤── 3 Ray workers in parallel
+└── run_agent.remote("Goldman Sachs industry + 365*24?")         ─┘
         ↓ each worker:
         make_agent()                    — Claude Haiku + 3 tools
         AgentExecutor.invoke(question)  — LLM decides which tools to call
         return {"question": ..., "answer": ...}
 ```
 
-**Monitor at:** console.anyscale.com/jobs
-
 ---
 
-## STEP 6 — Monitor and verify results
+## STEP 5 — Monitor and verify results
 
-**Stream logs in real time:**
+**Watch job state transitions:**
 
 ```bash
-anyscale job logs --name langchain-hello-agent --follow
+kubectl get rayjob langchain-hello-agent -w
 
-# OUTPUT (per worker, interleaved)
+# NAME                    JOB STATUS   DEPLOYMENT STATUS   START TIME
+# langchain-hello-agent   PENDING      Running             ...
+# langchain-hello-agent   RUNNING      Running             ...
+# langchain-hello-agent   SUCCEEDED    Complete            ...
+```
+
+**Stream logs from the Ray head pod:**
+
+```bash
+kubectl logs -l ray.io/node-type=head -n default --follow
+
+# OUTPUT
 Running 3 agent questions in parallel on Ray...
 
 > Entering new AgentExecutor chain...
 > Invoking: `classify_industry` with `{'company_name': 'Microsoft'}`
 > Microsoft → Technology
-> I found that Microsoft is in the Technology industry.
 > Finished chain.
 
 > Entering new AgentExecutor chain...
 > Invoking: `multiply_numbers` with `{'a': 2847.0, 'b': 3921.0}`
-> 11,162,487.0
-> The result of 2847 multiplied by 3921 is 11,162,487.
+> 11162487.0
 > Finished chain.
 
 ...
@@ -194,36 +193,21 @@ Q: What industry is Goldman Sachs in? Also, what is 365 times 24?
 A: Goldman Sachs is in the Finance industry. 365 times 24 equals 8,760.
 ```
 
-**Check job status:**
+**Confirm job succeeded:**
 
 ```bash
-anyscale job status --name langchain-hello-agent
+kubectl get rayjob langchain-hello-agent
 
-# STATE: SUCCESS
+# JOB STATUS: SUCCEEDED
 ```
 
-**Confirm Ray ran tasks in parallel — check head pod:**
-
-```bash
-# Get the head pod name (6/6 Running, no GPU)
-kubectl get pods -n anyscale-operator
-
-kubectl exec -it <head-pod> -n anyscale-operator -c ray -- ray status
-
-# OUTPUT
-...
-Active:
-  ...  3.0/3.0 CPU  (3 workers consumed)
-...
-```
-
-> If STATE is FAILED, check [Common Issues](#common-issues) below.
+> The RayCluster shuts down automatically after the job finishes (`shutdownAfterJobFinishes: true`). Auto Mode scales the nodes back to zero within minutes.
 
 ---
 
-## STEP 7 — (Optional) Enable LangSmith Tracing
+## STEP 6 — (Optional) Enable LangSmith Tracing
 
-LangSmith captures every tool call and LLM decision for every agent run — across all Ray workers. No code changes needed — just two env vars.
+LangSmith captures every tool call and LLM decision for every agent run — across all Ray workers. No code changes needed.
 
 **Get a LangSmith API key:** smith.langchain.com → Settings → API Keys
 
@@ -232,32 +216,37 @@ export LANGSMITH_API_KEY=<your-langsmith-key>
 export LANGSMITH_PROJECT=langchain-hello-agent
 ```
 
-**Resubmit with tracing enabled:**
+**Add LangSmith vars to the Kubernetes secret and resubmit:**
 
 ```bash
-cd tutorials/langchain-hello-agent
-anyscale job submit \
-    --cloud eks-ray-cloud \
-    --config-file job.yaml \
-    --env ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
-    --env LANGSMITH_TRACING=true \
-    --env LANGSMITH_API_KEY="${LANGSMITH_API_KEY}" \
-    --env LANGSMITH_PROJECT="${LANGSMITH_PROJECT}"
+kubectl create secret generic langchain-secrets \
+    --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+    --from-literal=LANGSMITH_TRACING=true \
+    --from-literal=LANGSMITH_API_KEY="${LANGSMITH_API_KEY}" \
+    --from-literal=LANGSMITH_PROJECT="${LANGSMITH_PROJECT}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl delete rayjob langchain-hello-agent --ignore-not-found
+kubectl apply -f tutorials/langchain-hello-agent/rayjob.yaml
 ```
+
+> Update `rayjob.yaml` to also mount `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, and `LANGSMITH_PROJECT` from the secret — same pattern as `ANTHROPIC_API_KEY`.
 
 **View traces:** smith.langchain.com → Projects → langchain-hello-agent
 
-Each of the 3 parallel runs appears as a separate trace showing: input → tool calls → tool outputs → final answer.
+Each of the 3 parallel runs appears as a separate trace: input → tool calls → tool outputs → final answer.
 
 ---
 
-## STEP 8 — Tear Down
+## STEP 7 — Tear Down
 
 ```bash
-# 1. Remove Anyscale
-./anyscale/teardown.sh
+# 1. Clean up RayJob resources
+kubectl delete rayjob langchain-hello-agent --ignore-not-found
+kubectl delete configmap langchain-hello-agent-code --ignore-not-found
+kubectl delete secret langchain-secrets --ignore-not-found
 
-# 2. Destroy cluster and VPC
+# 2. Destroy cluster
 ./cluster/destroy.sh
 
 # 3. Confirm zero spend
@@ -276,19 +265,19 @@ ERROR: ANTHROPIC_API_KEY is not set.
 ```
 Fix: `export ANTHROPIC_API_KEY=<your-key>` then resubmit.
 
-**Job stuck in STARTING (>5 min):**
+**Job stuck in PENDING:**
 ```bash
-kubectl get pods -n anyscale-operator
-kubectl describe pod <pending-pod> -n anyscale-operator | grep -A 20 "Events:"
+kubectl describe rayjob langchain-hello-agent
+kubectl get pods -n default
+kubectl describe pod <pending-pod> -n default | grep -A 20 "Events:"
 ```
-Usually: image pull in progress (first run) or Karpenter provisioning a node. Give it 3-5 min.
+Usually: Auto Mode is provisioning nodes (first run takes 2-3 min). Give it time.
 
 **`ModuleNotFoundError: langchain_anthropic`:**
-The `runtime_env` pip install failed. Check logs:
+The `runtimeEnvYAML` pip install failed or is still in progress. Check Ray head logs:
 ```bash
-anyscale job logs --name langchain-hello-agent | grep -i "pip\|install\|error"
+kubectl logs -l ray.io/node-type=head -n default | grep -i "pip\|install\|error"
 ```
-If the image doesn't support runtime_env pip installs, build a custom image with LangChain pre-installed.
 
 **Agent returns wrong answer:**
-Check the full tool call trace in the logs — look for `Invoking:` lines to see which tools were called and what they returned.
+Check tool call trace in the logs — look for `Invoking:` lines to see which tools were called and what they returned.

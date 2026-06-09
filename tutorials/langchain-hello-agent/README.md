@@ -1,10 +1,10 @@
 # LangChain Hello Agent
 
-First LangChain agent running as a Ray job on Anyscale + EKS. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
+First LangChain agent running as a Ray job on KubeRay + EKS Auto Mode. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
 
 ## What It Does
 
-1. Spins up a Ray cluster on EKS via Anyscale
+1. Submits a RayJob to KubeRay on EKS
 2. Fires 3 agent questions in parallel as `ray.remote` tasks
 3. Each worker: Claude Haiku + 3 tools (add, multiply, classify industry)
 4. Agent decides which tools to call, executes them, returns answers
@@ -22,7 +22,7 @@ A: Goldman Sachs is in the Finance industry. 365 times 24 equals 8,760.
 
 ## Run It
 
-Follow the [playbook](playbook.md) — it walks through every step from cluster creation to teardown with expected outputs.
+Follow the [playbook](playbook.md) — step-by-step from cluster creation to teardown.
 
 ```bash
 export ANTHROPIC_API_KEY=<your-key>
@@ -31,12 +31,7 @@ export ANTHROPIC_API_KEY=<your-key>
 
 ## Compute
 
-CPU only — no GPU needed. Karpenter provisions on-demand workers as Ray schedules tasks.
-
-| Node | Type |
-|------|------|
-| Head | 4 CPU, 8 GiB |
-| Workers (up to 3) | 2 CPU, 4 GiB each |
+CPU only — no GPU needed. Auto Mode provisions nodes on demand and scales to zero when idle.
 
 ## Key Concepts
 
@@ -45,6 +40,7 @@ CPU only — no GPU needed. Karpenter provisions on-demand workers as Ray schedu
 - **`AgentExecutor`** — runs the agent loop: LLM decides → tool executes → LLM responds
 - **`@ray.remote`** — each agent invocation runs on a separate Ray worker
 - **`ray.get(futures)`** — collects results from all parallel workers
+- **RayJob** — KubeRay CRD that submits a job to the Ray cluster and shuts it down when done
 
 ## What's Next
 
