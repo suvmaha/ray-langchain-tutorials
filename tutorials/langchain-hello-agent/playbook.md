@@ -148,6 +148,26 @@ agent.py
 
 ## STEP 5 — Monitor and verify results
 
+**Open the Ray Dashboard (in a separate terminal):**
+
+```bash
+# Get the head pod name
+kubectl get pods -n default -l ray.io/node-type=head
+
+# Port-forward the dashboard
+kubectl port-forward -n default svc/langchain-hello-agent-head-svc 8265:8265
+
+# Open in browser: http://localhost:8265
+```
+
+The dashboard shows:
+- **Jobs** tab — job status, duration, entrypoint
+- **Cluster** tab — worker nodes, CPU/memory per node
+- **Tasks** tab — individual `run_agent.remote` tasks, which worker ran each one
+- **Logs** tab — per-task log output
+
+> Keep the port-forward running while the job is active. It closes when the RayCluster shuts down after the job finishes.
+
 **Watch job state transitions:**
 
 ```bash

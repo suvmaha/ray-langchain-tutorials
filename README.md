@@ -16,10 +16,11 @@ AWS EKS Auto Mode  (your infrastructure — managed by AWS)
 
 | Tutorial | What It Covers |
 |----------|---------------|
-| [langchain-hello-agent](tutorials/langchain-hello-agent/) | First LangChain agent on Ray — tools, model, parallel invoke |
+| [langchain-hello-agent](tutorials/langchain-hello-agent/) | First LangChain agent on Ray — tools, model, parallel invoke, Ray Dashboard |
 | [langgraph-workflow](tutorials/langgraph-workflow/) | Stateful LangGraph graph distributed across Ray workers |
-| [langgraph-multi-agent](tutorials/langgraph-multi-agent/) | Parallel agent runs at scale with Ray Data |
 | [langsmith-observability](tutorials/langsmith-observability/) | Trace distributed agent runs with LangSmith |
+| [langgraph-multi-agent](tutorials/langgraph-multi-agent/) | Parallel agent runs at scale with Ray Data |
+| [grafana-prometheus](tutorials/grafana-prometheus/) | Cluster metrics dashboard — Ray + Kubernetes |
 | [langgraph-gpu-llm](tutorials/langgraph-gpu-llm/) | LangGraph + vLLM on GPU — self-hosted LLM, no API dependency |
 
 ## Prerequisites
