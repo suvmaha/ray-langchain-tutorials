@@ -68,3 +68,30 @@
 
   The fix is to switch to langgraph.prebuilt.create_react_agent — it's the current standard, cleaner API, and
   changes the pip list entirely which will bust the cache.
+
+⏺ Three separate issues, each caused by the LangChain/LangGraph ecosystem being in mid-migration:
+
+  Issue 1 — Wrong import (create_tool_calling_agent)
+  The original code used from langchain.agents import create_tool_calling_agent. That function was removed in the
+  latest LangChain — deprecated in favor of LangGraph's agent API. Job failed immediately on import.
+
+  Issue 2 — Stale pip cache
+  Switched to langgraph.prebuilt.create_react_agent (the LangGraph equivalent), but pinning version numbers in
+  runtimeEnvYAML had no effect. Ray reused the virtualenv cached on the same EC2 node from the first run — same
+  hash, same broken packages. The fix that actually busted the cache was changing the pip list entirely (adding
+  langchain, dropping the version constraints), forcing Ray to build a new env.
+
+  Issue 3 — create_react_agent deprecated in LangGraph v1.0
+  Once the correct packages were installed, create_react_agent ran but printed a deprecation warning: "moved to
+  langchain.agents.create_agent". Switched the import. That introduced a new error — create_agent() doesn't accept a
+   prompt keyword argument (different signature from create_react_agent). Dropped the prompt kwarg, Claude works
+  fine without it.
+
+  Bonus issue — ConfigMap not updating
+  kubectl create --dry-run | kubectl apply doesn't reliably update ConfigMap data on re-runs. Fixed submit.sh to
+  always delete + create the ConfigMap so code changes actually reach the pods.
+
+  Net result: The LangChain → LangGraph agent migration was incomplete in the ecosystem. The API moved from
+  langchain.agents.create_tool_calling_agent → langgraph.prebuilt.create_react_agent →
+  langchain.agents.create_agent, and we chased it through all three steps in one session.
+
