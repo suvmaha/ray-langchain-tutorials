@@ -1,14 +1,14 @@
 # Ray + LangChain Tutorials on AWS EKS
 
-Hands-on tutorials for running LangChain agents and LangGraph workflows at scale on Ray and Amazon EKS. Most LangGraph tutorials run single-process on a laptop — these run distributed across a GPU cluster.
+Hands-on tutorials for running LangChain agents and LangGraph workflows at scale on Ray and Amazon EKS. Most LangGraph tutorials run single-process on a laptop — these run distributed across a cluster.
 
 ## The Stack
 
 ```
-AWS EKS  (your infrastructure)
-    └── Ray  (distributed compute engine)
+AWS EKS Auto Mode  (your infrastructure — managed by AWS)
+    └── KubeRay   (Ray cluster operator)
             └── LangGraph  (agentic orchestration)
-                    └── LLMs  (Llama, Claude, GPT)
+                    └── LLMs  (Claude, Llama, GPT)
                             └── LangSmith  (observability)
 ```
 
@@ -16,11 +16,11 @@ AWS EKS  (your infrastructure)
 
 | Tutorial | What It Covers |
 |----------|---------------|
-| [langchain-hello-agent](tutorials/langchain-hello-agent/) | First LangChain agent on Ray — tools, model, invoke |
+| [langchain-hello-agent](tutorials/langchain-hello-agent/) | First LangChain agent on Ray — tools, model, parallel invoke |
 | [langgraph-workflow](tutorials/langgraph-workflow/) | Stateful LangGraph graph distributed across Ray workers |
 | [langgraph-multi-agent](tutorials/langgraph-multi-agent/) | Parallel agent runs at scale with Ray Data |
 | [langsmith-observability](tutorials/langsmith-observability/) | Trace distributed agent runs with LangSmith |
-| [langgraph-gpu-llm](tutorials/langgraph-gpu-llm/) | LangGraph + vLLM on GPU — self-hosted LLM, no OpenAI dependency |
+| [langgraph-gpu-llm](tutorials/langgraph-gpu-llm/) | LangGraph + vLLM on GPU — self-hosted LLM, no API dependency |
 
 ## Prerequisites
 
@@ -29,19 +29,19 @@ AWS EKS  (your infrastructure)
 | AWS CLI | configured for your account |
 | eksctl ≥ 0.195 | EKS cluster creation |
 | kubectl | Kubernetes operations |
-| helm ≥ 3 | Operator installation |
-| Python 3.11+ | CDK, tutorial scripts |
+| helm ≥ 3 | KubeRay operator install |
+| Python 3.11+ | tutorial scripts |
 
-## Cluster Setup
+## Cluster Lifecycle
 
 ```bash
-# 1. Create EKS cluster
+# 1. Create EKS Auto Mode cluster + KubeRay operator (~10 min)
 ./cluster/create.sh
 
 # 2. Run tutorials
-#    See each tutorial's README for instructions
+#    See each tutorial's playbook.md
 
-# 3. Tear down cluster when done
+# 3. Tear down
 ./cluster/destroy.sh
 ```
 
@@ -57,8 +57,7 @@ Read-only audit of billable AWS resources — run after teardown to confirm zero
 
 | Resource | Rate |
 |----------|------|
-| NAT gateway | ~$1/day |
 | EKS control plane | ~$0.10/hr |
-| EC2 nodes | Per use, scale to zero when idle |
+| EC2 nodes | On demand, scale to zero when idle |
 
-Run `./cluster/destroy.sh` when done to stop all charges.
+Auto Mode scales to zero between jobs — no idle node costs. Run `./cluster/destroy.sh` to stop all charges.
