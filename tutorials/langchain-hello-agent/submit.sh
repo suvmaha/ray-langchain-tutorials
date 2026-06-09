@@ -16,10 +16,9 @@ kubectl create secret generic langchain-secrets \
     --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-# ConfigMap — inject agent.py into the Ray pods
-kubectl create configmap langchain-hello-agent-code \
-    --from-file=agent.py=agent.py \
-    --dry-run=client -o yaml | kubectl apply -f -
+# ConfigMap — inject agent.py into the Ray pods (always recreate to pick up code changes)
+kubectl delete configmap langchain-hello-agent-code --ignore-not-found
+kubectl create configmap langchain-hello-agent-code --from-file=agent.py=agent.py
 
 # Submit the RayJob
 kubectl apply -f rayjob.yaml
