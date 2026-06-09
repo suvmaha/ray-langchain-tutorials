@@ -1,6 +1,6 @@
 # Playbook — LangChain Hello Agent
 
-**Estimated time:** ~20 min (cluster ~10 min + job ~5 min + results ~5 min)
+**Estimated time:** ~20 min (clone ~1 min + cluster ~10 min + job ~5 min + results ~4 min)
 
 Run a LangChain agent as a RayJob on KubeRay + EKS Auto Mode. Three questions run in parallel across Ray workers — the same pattern that scales to thousands.
 
@@ -11,12 +11,13 @@ Execute steps in order — each step leaves the environment ready for the next.
 ## Table of Contents
 
 - [STEP 1 — Verify Tools](#step-1--verify-tools)
-- [STEP 2 — Set API Key](#step-2--set-api-key)
-- [STEP 3 — Create EKS cluster](#step-3--create-eks-cluster)
-- [STEP 4 — Submit the agent job](#step-4--submit-the-agent-job)
-- [STEP 5 — Monitor and verify results](#step-5--monitor-and-verify-results)
-- [STEP 6 — (Optional) Enable LangSmith tracing](#step-6--optional-enable-langsmith-tracing)
-- [STEP 7 — Tear Down](#step-7--tear-down)
+- [STEP 2 — Clone the repo](#step-2--clone-the-repo)
+- [STEP 3 — Set API Key](#step-3--set-api-key)
+- [STEP 4 — Create EKS cluster](#step-4--create-eks-cluster)
+- [STEP 5 — Submit the agent job](#step-5--submit-the-agent-job)
+- [STEP 6 — Monitor and verify results](#step-6--monitor-and-verify-results)
+- [STEP 7 — (Optional) Enable LangSmith tracing](#step-7--optional-enable-langsmith-tracing)
+- [STEP 8 — Tear Down](#step-8--tear-down)
 
 ---
 
@@ -41,7 +42,40 @@ aws sts get-caller-identity
 
 ---
 
-## STEP 2 — Set API Key
+## STEP 2 — Clone the repo
+
+```bash
+git clone https://github.com/suvmaha/ray-langchain-tutorials.git
+cd ray-langchain-tutorials
+
+# Set REPO_ROOT — all paths in this playbook are relative to here
+export REPO_ROOT=$(pwd)
+```
+
+**Explore the structure:**
+
+```
+ray-langchain-tutorials/
+├── cluster/
+│   ├── cluster.yaml.template   ← eksctl Auto Mode config
+│   ├── create.sh               ← creates cluster + installs KubeRay
+│   └── destroy.sh              ← tears down cluster
+├── kuberay/
+│   ├── install.sh              ← KubeRay operator via Helm
+│   └── uninstall.sh
+├── scripts/
+│   └── cost-check.sh           ← read-only billing audit
+└── tutorials/
+    └── langchain-hello-agent/
+        ├── agent.py            ← LangChain agent code
+        ├── rayjob.yaml         ← KubeRay RayJob spec
+        ├── submit.sh           ← creates secret + configmap + applies rayjob
+        └── playbook.md         ← you are here
+```
+
+---
+
+## STEP 3 — Set API Key
 
 The agent calls Claude Haiku via the Anthropic API. `submit.sh` checks for this and fails fast if missing.
 
@@ -56,7 +90,7 @@ echo $ANTHROPIC_API_KEY | cut -c1-8    # e.g. sk-ant-ap
 
 ---
 
-## STEP 3 — Create EKS cluster
+## STEP 4 — Create EKS cluster
 
 ```bash
 ./cluster/create.sh
@@ -109,7 +143,7 @@ kubectl get deployment kuberay-operator -n ray-system
 
 ---
 
-## STEP 4 — Submit the agent job
+## STEP 5 — Submit the agent job
 
 ```bash
 ./tutorials/langchain-hello-agent/submit.sh
@@ -146,7 +180,7 @@ agent.py
 
 ---
 
-## STEP 5 — Monitor and verify results
+## STEP 6 — Monitor and verify results
 
 **Open the Ray Dashboard (in a separate terminal):**
 
@@ -225,7 +259,7 @@ kubectl get rayjob langchain-hello-agent
 
 ---
 
-## STEP 6 — (Optional) Enable LangSmith Tracing
+## STEP 7 — (Optional) Enable LangSmith Tracing
 
 LangSmith captures every tool call and LLM decision for every agent run — across all Ray workers. No code changes needed.
 
@@ -258,7 +292,7 @@ Each of the 3 parallel runs appears as a separate trace: input → tool calls �
 
 ---
 
-## STEP 7 — Tear Down
+## STEP 8 — Tear Down
 
 ```bash
 # 1. Clean up RayJob resources
