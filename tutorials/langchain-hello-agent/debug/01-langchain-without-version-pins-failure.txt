@@ -1,0 +1,58 @@
+❯ % kubectl describe rayjob langchain-hello-agent | grep -A 5 "Message:\|Reason:\|Job Id"
+    Job Id:                 langchain-hello-agent-vrzj2
+    Job Status:             FAILED
+    Message:                Job entrypoint command failed with exit code 1, last available logs (truncated to
+  20,000 chars):
+  2026-06-09 15:50:00,266   INFO job_manager.py:531 -- Runtime env is setting up.
+  Traceback (most recent call last):
+    File "/home/ray/tutorial/agent.py", line 4, in <module>
+      from langchain.agents import create_tool_calling_agent, AgentExecutor
+  ImportError: cannot import name 'create_tool_calling_agent' from 'langchain.agents'
+  (/tmp/ray/session_2026-06-09_15-48-49_740617_1/runtime_resources/pip/ac36e7c22cae785eb319fc7ba98b3cf73cc11b0f/vir
+  tualenv/lib/python3.11/site-packages/langchain/agents/__init__.py)
+  --
+    Reason:      AppFailed
+    Start Time:  2026-06-09T22:48:03Z
+    Succeeded:   0
+  Events:
+    Type     Reason                    Age    From               Message
+    ----     ------                    ----   ----               -------
+
+⏺ Clear error — create_tool_calling_agent import failed. Let me check what version of langchain is being installed
+  and what the agent imports look like.
+
+  Read 2 files (ctrl+o to expand)
+
+⏺ The problem is clear: langchain installed without version pins, and the latest version (likely 0.4+) removed or
+  moved create_tool_calling_agent from langchain.agents.
+
+  Fix: pin to langchain 0.3.x which has the function, and also pin langchain-anthropic for compatibility.
+
+⏺ Update(~/repos-jdl/2026-jdluther2020/ray-langchain-tutorials/tutorials/langchain-hello-agent/rayjob.yaml)
+  ⎿  Added 3 lines, removed 3 lines
+      10
+      11    runtimeEnvYAML: |
+      12      pip:
+      13 -      - langchain
+      14 -      - langchain-anthropic
+      15 -      - langchain-core
+      13 +      - "langchain>=0.3,<0.4"
+      14 +      - "langchain-anthropic>=0.3,<0.4"
+      15 +      - "langchain-core>=0.3,<0.4"
+      16
+      17    rayClusterSpec:
+      18      rayVersion: "2.44.0"
+
+⏺ Now clean up the failed job and resubmit:
+
+  kubectl delete rayjob langchain-hello-agent --ignore-not-found
+  kubectl delete configmap langchain-hello-agent-code --ignore-not-found
+  kubectl delete secret langchain-secrets --ignore-not-found
+
+  Then resubmit (secret and configmap need to be recreated too):
+
+  ./tutorials/langchain-hello-agent/submit.sh
+
+  The pip install will take a couple minutes on first run since it's resolving the pinned versions, but
+  create_tool_calling_agent will be available in 0.3.x.
+
